@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+    <title>WebGL Image Filtering</title>
+
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+    <meta name="description" content="" />
+    <link rel="stylesheet" href="./style.css" />
+    <script src="https://webglfundamentals.org/webgl/resources/webgl-utils.js"></script>
+    <script  id="vertex-shader-2d" type="x-shader/x-vertex">
+    attribute vec2 a_position;
+    attribute vec2 a_texCoord;
+    
+    uniform vec2 u_resolution;
+    
+    varying vec2 v_texCoord;
+    
+    void main() {
+        // convert the rectangle from pixels to 0.0 to 1.0
+        vec2 zeroToOne = a_position / u_resolution;
+    
+        // convert from 0->1 to 0->2
+        vec2 zeroToTwo = zeroToOne * 2.0;
+    
+        // convert from 0->2 to -1->+1 (clipspace)
+        vec2 clipSpace = zeroToTwo - 1.0;
+    
+        gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+    
+        // pass the texCoord to the fragment shader
+        // The GPU will interpolate this value between points.
+        v_texCoord = a_texCoord;
+    }
+    </script>
+    <!-- fragment shader -->
+    <script  id="fragment-shader-2d" type="x-shader/x-fragment">
+    precision mediump float;
+    uniform sampler2D u_image;
+    uniform float warmth;
+    uniform float sharpen;
+    uniform float brightness;
+    uniform float contrast;
+
+    uniform vec2 u_textureSize;
+
+    
+    varying vec2 v_texCoord;
+    
+    void main() {
+        vec3 col = texture2D(u_image, v_texCoord).rgb;
+        vec2 op = vec2(1.0, 1.0) / u_textureSize;
+        
+        vec4 tex00 = texture2D(u_image, v_texCoord + op * vec2(-2.0, -2.0));
+        vec4 tex10 = texture2D(u_image, v_texCoord + op * vec2(-1.0, -2.0));
+        vec4 tex20 = texture2D(u_image, v_texCoord + op * vec2(0.0, -2.0));
+        vec4 tex30 = texture2D(u_image, v_texCoord + op * vec2(1.0, -2.0));
+        vec4 tex40 = texture2D(u_image, v_texCoord + op * vec2(2.0, -2.0));
+
+        vec4 tex01 = texture2D(u_image, v_texCoord + op * vec2(-2.0, -1.0));
+        vec4 tex11 = texture2D(u_image, v_texCoord + op * vec2(-1.0, -1.0));
+        vec4 tex21 = texture2D(u_image, v_texCoord + op * vec2(0.0, -1.0));
+        vec4 tex31 = texture2D(u_image, v_texCoord + op * vec2(1.0, -1.0));
+        vec4 tex41 = texture2D(u_image, v_texCoord + op * vec2(2.0, -1.0));
+
+        vec4 tex02 = texture2D(u_image, v_texCoord + op * vec2(-2.0, 0.0));
+        vec4 tex12 = texture2D(u_image, v_texCoord + op * vec2(-1.0, 0.0));
+        vec4 tex22 = texture2D(u_image, v_texCoord + op * vec2(0.0, 0.0));
+        vec4 tex32 = texture2D(u_image, v_texCoord + op * vec2(1.0, 0.0));
+        vec4 tex42 = texture2D(u_image, v_texCoord + op * vec2(2.0, 0.0));
+
+        vec4 tex03 = texture2D(u_image, v_texCoord + op * vec2(-2.0, .0));
+        vec4 tex13 = texture2D(u_image, v_texCoord + op * vec2(-1.0, .0));
+        vec4 tex23 = texture2D(u_image, v_texCoord + op * vec2(0.0, 1.0));
+        vec4 tex33 = texture2D(u_image, v_texCoord + op * vec2(1.0, 1.0));
+        vec4 tex43 = texture2D(u_image, v_texCoord + op * vec2(2.0, 1.0));
+
+        vec4 tex04 = texture2D(u_image, v_texCoord + op * vec2(-2.0, 0.0));
+        vec4 tex14 = texture2D(u_image, v_texCoord + op * vec2(-1.0, 0.0));
+        vec4 tex24 = texture2D(u_image, v_texCoord + op * vec2(0.0, 2.0));
+        vec4 tex34 = texture2D(u_image, v_texCoord + op * vec2(1.0, 2.0));
+        vec4 tex44 = texture2D(u_image, v_texCoord + op * vec2(2.0, 2.0));
+
+        vec4 blur = 1.0*tex00 + 4.0*tex10 + 6.0*tex20 + 4.0*tex30 + 1.0*tex40 
+                  + 4.0*tex01 + 16.0*tex11 + 24.0*tex21 + 16.0*tex31 + 4.0*tex41 
+                  + 6.0*tex02 + 24.0*tex12 + 36.0*tex22 + 24.0*tex32 + 6.0*tex42 
+                  + 4.0*tex03 + 16.0*tex13 + 24.0*tex23 + 16.0*tex33 + 4.0*tex43 
+                  + 1.0*tex04 + 4.0*tex14 + 6.0*tex24 + 4.0*tex34 + 1.0*tex44;
+        blur /= 256.0;
+
+
+
+        // sharpen
+        col += (col-blur.rgb) * sharpen;
+
+        // contrast
+        col = (col - 0.5) * contrast + 0.5;
+
+        // warmth
+        col.r += warmth;
+        col.b -= warmth;
+
+        // brightness
+        col *= brightness;
+        gl_FragColor = vec4(col, 1);
+    }
+    </script>
+</head>
+
+<body>
+
+
+    <div class="top-bar">
+        <p><a href="https://koizura.me" target="blank">koizura.me</a></p>
+        <h1>Image Filtering</h1>
+    </div>
+    <div class="output-container">
+        <h2>Image</h2>
+        <div class="canvas-container">
+            <canvas id="canvas"></canvas>
+        </div>
+    </div>
+    <div class="editor-container">
+        <h2>Filters</h2>
+        <div class="filters">
+            
+
+
+            <div class="filter-text">
+                <p class="filter-title">Sharpen</p>
+                <p class="filter-value" id="sharpenInput">0</p>
+            </div>
+            <div class="slidecontainer">
+                <input type="range" min="-100" max="100" value="0" class="slider" id="sharpenSlider">
+            </div>
+
+            <div class="filter-text">
+                <p class="filter-title">contrast</p>
+                <p class="filter-value" id="contrastInput">0</p>
+            </div>
+            <div class="slidecontainer">
+                <input type="range" min="0" max="100" value="0" class="slider" id="contrastSlider">
+            </div> 
+
+            <div class="filter-text">
+                <p class="filter-title">brightness</p>
+                <p class="filter-value" id="brightnessInput">0</p>
+            </div>
+            <div class="slidecontainer">
+                <input type="range" min="0" max="100" value="0" class="slider" id="brightnessSlider">
+            </div>            
+
+            <div class="filter-text">
+                <p class="filter-title">Warmth</p>
+                <p class="filter-value" id="warmthInput">0</p>
+            </div>
+            <div class="slidecontainer">
+                <input type="range" min="-100" max="100" value="0" class="slider" id="warmthSlider">
+            </div>
+
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
